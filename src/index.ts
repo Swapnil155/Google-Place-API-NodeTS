@@ -81,8 +81,66 @@ app.get('/find-place', async (req: Request, res: Response) => {
     }
 });
 
-
+// Define the endpoint to fetch autocomplete suggestions
 app.get('/autocomplete', async (req: Request, res: Response) => {
+    try {
+        // Extract and validate the input query parameter
+        const input: string = req.query.input as string;
+        if (!input || input.trim() === '') {
+            res.status(400).json({ error: 'Input parameter is required' });
+            return;
+        }
+
+        // Step 1: Call Google Places Autocomplete API
+        const googleResponse = await axios.get(
+            'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+            {
+                params: {
+                    key: GOOGLE_MAPS_API_KEY,
+                    input,
+                    types: 'geocode',
+                    language: 'en',
+                },
+            }
+        );
+
+        // Step 2: Check Google API response status
+        if (googleResponse.data.status !== 'OK') {
+            res.status(500).json({
+                error: 'Failed to fetch autocomplete suggestions',
+                details: googleResponse.data,
+            });
+            return;
+        }
+
+        // Step 3: Transform Google API predictions
+        const predictions = googleResponse.data.predictions.map((prediction: any) =>
+            prediction.terms.map((term: { value: string }) => term.value)
+        );
+
+
+        const placeSuggestions: PlaceSuggestion[] = predictions.map((terms: string[]) => {
+            return {
+                name: terms[0],
+                city: terms.slice(-3)[0] || '',
+                state: terms.slice(-2)[0] || '',
+                country: terms.slice(-1)[0] || '',
+                address: terms.slice().join(', ')
+            };
+        });
+
+
+
+        // Respond with filtered and sorted autocomplete results
+        res.json(placeSuggestions);
+    } catch (error) {
+        console.error('Error fetching autocomplete suggestions:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Custom autocomplete endpoint with filtering and sorting
+app.get('/custom-autocomplete', async (req: Request, res: Response) => {
     try {
         // Extract and validate the input query parameter
         const input: string = req.query.input as string;
